@@ -99,7 +99,7 @@ class TimeSeriesLSTM(nn.Module):
                 with torch.no_grad():
                     y_hat = self(x)
                 predictions.append(y_hat.item())
-                history = torch.cat([history, y_hat.view(1)])
+                history = torch.cat([history, y_hat.view(1)], dim=1)
             return torch.tensor(predictions)
 
         elif method == "direct":

@@ -24,11 +24,10 @@ class ABBA:
             segments.append(seg)
         segments = np.array(segments)
 
-        # 2️⃣ Dimension réduite : ici juste moyenne et pente comme exemple
-        features = np.column_stack([
-            segments.mean(axis=1),
-            (segments[-1] - segments[0]) / self.window_size
-        ])
+        # 2️⃣ Dimension réduite : moyenne et pente par segment
+        means = segments.mean(axis=1)
+        slopes = (segments[:, -1] - segments[:, 0]) / self.window_size
+        features = np.column_stack([means, slopes])
 
         # 3️⃣ Clustering pour créer l'alphabet
         self.kmeans = KMeans(n_clusters=self.n_symbols, random_state=42)
@@ -41,7 +40,7 @@ class ABBA:
             mask = labels == sym
             self.symbol_map[sym] = segments[mask].mean(axis=0)
 
-        return labels  # sequence symbolique
+        return labels
 
     def transform(self, series):
         """
@@ -63,15 +62,6 @@ class ABBA:
 
         labels = self.kmeans.predict(features)
         return labels
-
-    def inverse_transform(self, symbols):
-        """
-        Reconstruit approx. série à partir des symboles
-        """
-        recon = []
-        for s in symbols:
-            recon.extend(self.symbol_map[s])
-        return np.array(recon)
 
     def inverse_transform_smooth(self, symbols):
         window = self.window_size
