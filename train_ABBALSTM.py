@@ -3,7 +3,7 @@ import torch
 import os
 import torch.nn as nn
 
-from utils.data_handler import create_lagged_series_continuous
+from utils.data_handler import create_lagged_series_symbolic
 
 
 def save_checkpoint(
@@ -60,13 +60,16 @@ def train_model(
         raise ValueError("Stateful LSTM requires batch_size=1")
 
     model.to(device)
-    criterion = nn.MSELoss()
+    criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+    if not torch.is_tensor(series):
+        series = torch.tensor(series, dtype=torch.long)
 
     # Split temporel
     train_series, val_series = temporal_train_val_split(series, val_ratio)
-    X_train, y_train = create_lagged_series_continuous(train_series, lag)
-    X_val, y_val = create_lagged_series_continuous(val_series, lag)
+    X_train, y_train = create_lagged_series_symbolic(train_series, lag)
+    X_val, y_val = create_lagged_series_symbolic(val_series, lag)
 
     X_train, y_train = X_train.to(device), y_train.to(device)
     X_val, y_val = X_val.to(device), y_val.to(device)
@@ -99,7 +102,7 @@ def train_model(
             xb = X_train[i:i+batch_size]
             yb = y_train[i:i+batch_size]
 
-            if not model.stateful:
+            if model.stateful:
                 model.reset_states()
 
             optimizer.zero_grad()
@@ -114,7 +117,7 @@ def train_model(
 
         # -------- VALID --------
         model.eval()
-        if model.stateful:
+        if not model.stateful:
             model.reset_states()
 
         with torch.no_grad():
