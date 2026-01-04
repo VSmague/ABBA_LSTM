@@ -1,5 +1,30 @@
 import numpy as np
 from sklearn.cluster import KMeans
+from scipy.interpolate import interp1d
+
+
+def alpha_clustering(features, alpha):
+    centers = []
+    labels = []
+
+    for z in features:
+        if len(centers) == 0:
+            centers.append(z)
+            labels.append(0)
+            continue
+
+        dists = [np.linalg.norm(z - c) for c in centers]
+        idx = np.argmin(dists)
+
+        if dists[idx] <= alpha:
+            labels.append(idx)
+            # mise à jour moyenne du cluster
+            centers[idx] = (centers[idx] + z) / 2
+        else:
+            centers.append(z)
+            labels.append(len(centers) - 1)
+
+    return np.array(labels), np.array(centers)
 
 
 class ABBA_like:
@@ -177,3 +202,145 @@ class ABBA:
                 current = current + slope
                 series.append(current)
         return np.array(series)
+
+
+class ABBAPatched:
+    """
+    Implémentation fidèle de ABBA avec patched reconstruction
+    (Elsworth & Güttel)
+    """
+
+    def __init__(self, compression_tol=0.01, alpha=0.1, random_state=42):
+        """
+        compression_tol  : tolérance de compression (epsilon dans l'article)
+        """
+        self.compression_tol = compression_tol
+        self.random_state = random_state
+        self.alpha = alpha
+        self.symbol_sequence = None
+        self.patches = None
+        self.cluster_centers = None
+
+    # ==========================================================
+    # 1️⃣ COMPRESSION (Adaptive piecewise linear approximation)
+    # ==========================================================
+
+    def _compress(self, series):
+        """
+        Retourne une liste de segments sous la forme :
+        (i_start, i_end, length, increment)
+        """
+        segments = []
+        i0 = 0
+        N = len(series)
+
+        while i0 < N - 1:
+            i1 = i0 + 1
+            while i1 < N:
+                # droite candidate
+                slope = (series[i1] - series[i0]) / (i1 - i0)
+                approx = series[i0] + slope * np.arange(i1 - i0 + 1)
+                error = np.max(np.abs(series[i0:i1+1] - approx))
+
+                if error > self.compression_tol:
+                    i1 -= 1
+                    break
+
+                i1 += 1
+
+            if i1 <= i0:
+                i1 = i0 + 1
+            if i1 >= N:
+                i1 -= 1
+            
+            length = i1 - i0
+            inc = series[i1] - series[i0]
+
+            segments.append((i0, i1, length, inc))
+            i0 = i1
+
+        return segments
+
+    # ==========================================================
+    # 2️⃣ DIGITIZATION + PATCH CONSTRUCTION
+    # ==========================================================
+
+    def fit(self, series):
+        """
+        series : np.array (1D)
+        """
+        series = np.asarray(series, dtype=float)
+        segments = self._compress(series)
+        self.lengths = [seg[2] for seg in segments]
+        # features pour clustering
+        features = np.array([[seg[2], seg[3]] for seg in segments])
+        labels, centers = alpha_clustering(features, alpha=self.alpha)
+        self.cluster_centers = centers
+        self.n_symbols = len(centers)
+
+        self.symbol_sequence = labels
+
+        # construire les patches
+        self.patches = {}
+
+        for sym in range(len(features)):
+            idx = np.where(labels == sym)[0]
+            if len(idx) == 0:
+                continue
+
+            raw_segments = []
+            lengths = []
+
+            for i in idx:
+                i0, i1, _, _ = segments[i]
+                seg = series[i0:i1+1]
+                raw_segments.append(seg)
+                lengths.append(len(seg))
+
+            L = int(round(np.mean(lengths)))
+
+            aligned = []
+            for seg in raw_segments:
+                x_old = np.linspace(0, 1, len(seg))
+                x_new = np.linspace(0, 1, L)
+                f = interp1d(x_old, seg, kind="linear")
+                aligned.append(f(x_new))
+
+            self.patches[sym] = np.mean(aligned, axis=0)
+
+        return labels
+
+    # ==========================================================
+    # 3️⃣ TRANSFORM (series → symbols)
+    # ==========================================================
+
+    def transform(self, series):
+        series = np.asarray(series, dtype=float)
+        segments = self._compress(series)
+        features = np.array([[seg[2], seg[3]] for seg in segments])
+        labels = np.array([np.argmin(np.linalg.norm(fc - self.cluster_centers, axis=1)) for fc in features])
+        return labels
+
+    # ==========================================================
+    # 4️⃣ INVERSE TRANSFORM (PATCHED RECONSTRUCTION)
+    # ==========================================================
+
+    def inverse_transform(self, symbols, x0=None):
+        """
+        symbols : séquence symbolique
+        x0      : valeur initiale (optionnelle)
+        """
+        recon = []
+        current = x0
+
+        for s in symbols:
+            s = int(s)
+            patch = self.patches[s].copy()
+
+            if current is not None:
+                patch = patch - patch[0] + current
+
+            recon.extend(patch)
+            current = recon[-1]
+
+        return np.array(recon)

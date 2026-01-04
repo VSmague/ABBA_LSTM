@@ -7,7 +7,7 @@ class ABBALSTM(nn.Module):
         self,
         n_symbols,
         embedding_dim=16,
-        hidden_sizes=[50],
+        hidden_sizes=[50, 50],
         lag=10,
         stateful=False
     ):

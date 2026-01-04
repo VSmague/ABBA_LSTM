@@ -43,10 +43,9 @@ def temporal_train_val_split(series, val_ratio=0.2):
     return series[:split], series[split:]
 
 
-def train_model(
+def train_abba(
     model,
     series,
-    lag,
     epochs=200,
     lr=1e-3,
     batch_size=32,
@@ -65,6 +64,8 @@ def train_model(
 
     if not torch.is_tensor(series):
         series = torch.tensor(series, dtype=torch.long)
+
+    lag = model.lag
 
     # Split temporel
     train_series, val_series = temporal_train_val_split(series, val_ratio)
@@ -102,7 +103,7 @@ def train_model(
             xb = X_train[i:i+batch_size]
             yb = y_train[i:i+batch_size]
 
-            if model.stateful:
+            if not model.stateful:
                 model.reset_states()
 
             optimizer.zero_grad()

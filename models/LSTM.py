@@ -1,12 +1,13 @@
 import torch
 import torch.nn as nn
+import numpy as np
 
 
 class TimeSeriesLSTM(nn.Module):
     def __init__(
         self,
         input_size=1,
-        hidden_sizes=[50],
+        hidden_sizes=[50, 50],
         output_size=1,
         lag=10,
         stateful=False
@@ -77,11 +78,10 @@ class TimeSeriesLSTM(nn.Module):
 
         return output
 
-    def forecast(self, initial_series, horizon, method="recursive"):
+    def forecast(self, initial_series, horizon):
         """
         initial_series : tensor (lag,)
         horizon        : k
-        method         : 'recursive', 'direct', 'mimo'
         """
 
         self.eval()
@@ -89,28 +89,18 @@ class TimeSeriesLSTM(nn.Module):
 
         if self.stateful:
             self.reset_states()
-
+        
+        if isinstance(initial_series, np.ndarray):
+            initial_series = torch.tensor(
+                initial_series, dtype=torch.float32
+            )
         history = initial_series.clone().to(device)
         predictions = []
 
-        if method == "recursive":
-            for _ in range(horizon):
-                x = history[-self.lag:].view(1, self.lag, 1)
-                with torch.no_grad():
-                    y_hat = self(x)
-                predictions.append(y_hat.item())
-                history = torch.cat([history, y_hat.view(1)])
-            return torch.tensor(predictions)
-
-        elif method == "direct":
+        for _ in range(horizon):
             x = history[-self.lag:].view(1, self.lag, 1)
             with torch.no_grad():
-                return self(x).view(-1)
-
-        elif method == "mimo":
-            x = history[-self.lag:].view(1, self.lag, 1)
-            with torch.no_grad():
-                return self(x).squeeze()
-
-        else:
-            raise ValueError("Méthode inconnue")
+                y_hat = self(x)
+            predictions.append(y_hat.item())
+            history = torch.cat([history, y_hat.view(1)])
+        return torch.tensor(predictions)
