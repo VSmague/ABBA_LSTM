@@ -280,14 +280,11 @@ class ABBAPatched:
 
         self.symbol_sequence = labels
 
-        # construire les patches
+        unique_labels = np.unique(labels)
         self.patches = {}
 
-        for sym in range(len(features)):
+        for sym in unique_labels:
             idx = np.where(labels == sym)[0]
-            if len(idx) == 0:
-                continue
-
             raw_segments = []
             lengths = []
 
@@ -305,9 +302,7 @@ class ABBAPatched:
                 x_new = np.linspace(0, 1, L)
                 f = interp1d(x_old, seg, kind="linear")
                 aligned.append(f(x_new))
-
             self.patches[sym] = np.mean(aligned, axis=0)
-
         return labels
 
     # ==========================================================
