@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import numpy as np
 
 
 class ABBALSTM(nn.Module):
@@ -63,6 +64,11 @@ class ABBALSTM(nn.Module):
         if self.stateful:
             self.reset_states()
         
+        if isinstance(initial_symbols, np.ndarray):
+            initial_symbols = torch.tensor(
+                initial_symbols, dtype=torch.long
+            )
+
         history = initial_symbols.clone().to(next(self.parameters()).device)
         predictions = []
 

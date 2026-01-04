@@ -21,8 +21,8 @@ def create_lagged_series_continuous(series, lag):
             X.append(series[i:i+lag])
             y.append(series[i+lag])
 
-    X = torch.tensor(X).unsqueeze(-1)
-    y = torch.tensor(y).unsqueeze(-1)
+    X = torch.stack(X).unsqueeze(-1)
+    y = torch.stack(y).unsqueeze(-1)
     return X.float(), y.float()
 
 
