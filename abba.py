@@ -287,7 +287,11 @@ class ABBAPatched:
     # ==========================================================
     # 2️⃣ DIGITIZATION + PATCH CONSTRUCTION
     # ==========================================================
-
+    def print_patches(self):
+        for k, p in self.patches.items():
+            print(f"Symbol {k}: length={len(p)}, delta={p[-1] - p[0]}")
+        return None
+        
     def fit(self, series):
         """
         series : np.array (1D)

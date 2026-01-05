@@ -76,7 +76,9 @@ class ABBALSTM(nn.Module):
             x = history[-self.lag:].unsqueeze(0)
             with torch.no_grad():
                 logits = self(x)
-                s = torch.argmax(logits, dim=1)
+                # s = torch.argmax(logits, dim=1)
+                probs = torch.softmax(logits, dim=1)
+                s = torch.multinomial(probs, num_samples=1).view(-1)
             predictions.append(s.item())
             history = torch.cat([history, s])
 

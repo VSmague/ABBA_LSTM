@@ -1,4 +1,6 @@
 import torch
+import numpy as np
+from scipy.interpolate import interp1d
 
 
 def create_lagged_series_continuous(series, lag):
@@ -50,3 +52,10 @@ def create_lagged_series_symbolic(series, lag):
     y = torch.tensor(y, dtype=torch.long)  # (N-lag,)
 
     return X.long(), y.long()
+
+
+def resample_to_horizon(signal, horizon):
+    x_old = np.linspace(0, 1, len(signal))
+    x_new = np.linspace(0, 1, horizon)
+    f = interp1d(x_old, signal, kind="linear")
+    return f(x_new)
