@@ -67,7 +67,6 @@ def train_abba(
 
     lag = model.lag
 
-    # Split temporel
     train_series, val_series = temporal_train_val_split(series, val_ratio)
     X_train, y_train = create_lagged_series_symbolic(train_series, lag)
     X_val, y_val = create_lagged_series_symbolic(val_series, lag)
@@ -75,7 +74,6 @@ def train_abba(
     X_train, y_train = X_train.to(device), y_train.to(device)
     X_val, y_val = X_val.to(device), y_val.to(device)
 
-    # === Initialisation reprise ===
     start_epoch = 0
     best_val_loss = float("inf")
     patience_counter = 0
@@ -89,7 +87,6 @@ def train_abba(
         )
         print(f"Reprise du training à l'epoch {start_epoch}")
 
-    # === Loop d'entraînement ===
     for epoch in range(start_epoch, epochs):
 
         # -------- TRAIN --------
@@ -170,7 +167,6 @@ def train_abba(
             )
             break
 
-    # Restaurer le meilleur modèle
     if best_model_state is not None:
         model.load_state_dict(best_model_state)
 
@@ -344,4 +340,4 @@ def train_abba_rolling(
     if best_model_state is not None:
         model.load_state_dict(best_model_state)
 
-    return model
+    return None

@@ -12,13 +12,7 @@ class TimeSeriesLSTM(nn.Module):
         lag=10,
         stateful=False
     ):
-        """
-        input_size   : nombre de variables (1 pour une série univariée)
-        hidden_sizes : liste, ex [50, 50] = 2 layers de 50 cellules
-        output_size  : dimension de sortie
-        lag          : nombre de retards (l)
-        stateful     : True = stateful LSTM, False = stateless
-        """
+
         super(TimeSeriesLSTM, self).__init__()
 
         self.lag = lag
@@ -26,7 +20,6 @@ class TimeSeriesLSTM(nn.Module):
         self.hidden_sizes = hidden_sizes
         self.num_layers = len(hidden_sizes)
 
-        # Construction dynamique des layers LSTM
         self.lstm_layers = nn.ModuleList()
         for i in range(self.num_layers):
             in_size = input_size if i == 0 else hidden_sizes[i - 1]
@@ -37,11 +30,8 @@ class TimeSeriesLSTM(nn.Module):
                     batch_first=True
                 )
             )
-
-        # Couche de sortie
         self.fc = nn.Linear(hidden_sizes[-1], output_size)
 
-        # États internes (pour stateful)
         self.hidden_states = None
 
     def reset_states(self):
@@ -58,8 +48,6 @@ class TimeSeriesLSTM(nn.Module):
         new_hidden_states = []
 
         for i, lstm in enumerate(self.lstm_layers):
-
-            # Initialisation des états
             if self.stateful and self.hidden_states is not None:
                 h0, c0 = self.hidden_states[i]
             else:
@@ -72,7 +60,6 @@ class TimeSeriesLSTM(nn.Module):
         if self.stateful:
             self.hidden_states = new_hidden_states
 
-        # Dernier pas de temps
         x = x[:, -1, :]
         output = self.fc(x)
 

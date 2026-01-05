@@ -18,7 +18,6 @@ def alpha_clustering(features, alpha):
 
         if dists[idx] <= alpha:
             labels.append(idx)
-            # mise à jour moyenne du cluster
             centers[idx] = (centers[idx] + z) / 2
         else:
             centers.append(z)
@@ -42,24 +41,20 @@ class ABBA_like:
         """
         series : np.array (1D)
         """
-        # 1️⃣ Segmenter la série
         segments = []
         for i in range(len(series) - self.window_size + 1):
             seg = series[i:i+self.window_size]
             segments.append(seg)
         segments = np.array(segments)
 
-        # 2️⃣ Dimension réduite : moyenne et pente par segment
         means = segments.mean(axis=1)
         slopes = (segments[:, -1] - segments[:, 0]) / self.window_size
         features = np.column_stack([means, slopes])
 
-        # 3️⃣ Clustering pour créer l'alphabet
         self.kmeans = KMeans(n_clusters=self.n_symbols, random_state=42)
         self.kmeans.fit(features)
         labels = self.kmeans.labels_
 
-        # 4️⃣ Mapping symbole -> segment moyen
         self.symbol_map = {}
         for sym in range(self.n_symbols):
             mask = labels == sym
@@ -98,7 +93,7 @@ class ABBA_like:
             recon[i:i+window] += segment
             counts[i:i+window] += 1
 
-        recon /= counts  # moyenne sur chevauchements
+        recon /= counts
         return recon
 
 
@@ -115,22 +110,16 @@ class ABBA:
         self.kmeans = None
         self.symbol_sequence = None
 
-    # ----------------------------
-    # 1️⃣ Segmentation adaptative
-    # ----------------------------
     def _segment_series(self, series):
         segments = []
         start = 0
         n = len(series)
         
         while start < n - 1:
-            # segment minimal
             end = start + 1
             slope = series[end] - series[start]
             
-            # essayer d’étendre le segment tant que l’erreur ≤ ε
             while end + 1 < n:
-                # prédiction linéaire
                 seg_len = end - start + 1
                 pred = series[start] + slope * np.arange(1, seg_len + 1) / seg_len
                 err = np.max(np.abs(series[start:end+1] - pred))
@@ -140,62 +129,47 @@ class ABBA:
                 end += 1
                 slope = series[end] - series[start]
             
-            # enregistrer le segment : (start, end, slope)
             segments.append((start, end, slope))
             start = end
         
         return segments
 
-    # ----------------------------
-    # 2️⃣ Fit ABBA : segmentation + clustering
-    # ----------------------------
     def fit(self, series):
         """
         series : np.array 1D
         Retourne : sequence symbolique
         """
-        # 1️⃣ Segmentation adaptative
         segs = self._segment_series(series)
         
-        # 2️⃣ Extraire features pour clustering : slope et length
         features = np.array([
             [seg[1]-seg[0], seg[2]]  # length, slope
             for seg in segs
         ])
         
-        # 3️⃣ Clustering
         n_clusters = self.n_symbols or len(segs)
         self.kmeans = KMeans(n_clusters=n_clusters, random_state=42)
         self.kmeans.fit(features)
         labels = self.kmeans.labels_
         
-        # 4️⃣ Construire mapping symbole -> segment moyen
         self.symbol_map = {}
         for sym in range(n_clusters):
             mask = labels == sym
             seg_means = features[mask]
             self.symbol_map[sym] = seg_means.mean(axis=0)  # length, slope
         
-        # 5️⃣ Stocker la séquence symbolique
         self.symbol_sequence = labels
         return labels
 
-    # ----------------------------
-    # 3️⃣ Transform d’une nouvelle série
-    # ----------------------------
     def transform(self, series):
         segs = self._segment_series(series)
         features = np.array([[seg[1]-seg[0], seg[2]] for seg in segs])
         return self.kmeans.predict(features)
 
-    # ----------------------------
-    # 4️⃣ Inverse transform : reconstruction
-    # ----------------------------
     def inverse_transform(self, symbols, x0):
         series = []
         current = x0
         for s in symbols:
-            s = int(s)   # conversion automatique
+            s = int(s)
             length, slope = self.symbol_map[s]
             length = int(round(length))
             for _ in range(length):
@@ -222,10 +196,6 @@ class ABBAPatched:
         self.patches = None
         self.cluster_centers = None
 
-    # ==========================================================
-    # 1️⃣ COMPRESSION (Adaptive piecewise linear approximation)
-    # ==========================================================
-
     def _compress(self, series):
         """
         Retourne une liste de segments sous la forme :
@@ -238,7 +208,6 @@ class ABBAPatched:
         while i0 < N - 1:
             i1 = i0 + 1
             while i1 < N:
-                # droite candidate
                 slope = (series[i1] - series[i0]) / (i1 - i0)
                 approx = series[i0] + slope * np.arange(i1 - i0 + 1)
                 error = np.max(np.abs(series[i0:i1+1] - approx))
@@ -284,9 +253,6 @@ class ABBAPatched:
 
         return labels, np.array(new_centers)
 
-    # ==========================================================
-    # 2️⃣ DIGITIZATION + PATCH CONSTRUCTION
-    # ==========================================================
     def print_patches(self):
         for k, p in self.patches.items():
             print(f"Symbol {k}: length={len(p)}, delta={p[-1] - p[0]}")
@@ -299,22 +265,14 @@ class ABBAPatched:
         series = np.asarray(series, dtype=float)
         segments = self._compress(series)
         self.lengths = [seg[2] for seg in segments]
-        # features pour clustering
         features = np.array([[seg[2], seg[3]] for seg in segments])
         features = (features - features.mean(axis=0)) / features.std(axis=0)
-        print("First two features:", features[:2])
-        print("Distance:", np.linalg.norm(features[1] - features[0]))
-        print("Alpha:", self.alpha)
         labels, centers = alpha_clustering(features, alpha=self.alpha)
         if self.max_k is not None:
             while len(centers) > self.max_k:
-                print('nb of clusters :', len(centers))
                 labels, centers = self._merge_clusters(
                     labels, centers, features
                 )
-        # unique = np.unique(labels)
-        # mapping = {old: new for new, old in enumerate(unique)}
-        # labels = np.array([mapping[l] for l in labels])
         self.cluster_centers = centers
         self.n_symbols = len(centers)
 
@@ -345,20 +303,12 @@ class ABBAPatched:
             self.patches[sym] = np.mean(aligned, axis=0)
         return labels
 
-    # ==========================================================
-    # 3️⃣ TRANSFORM (series → symbols)
-    # ==========================================================
-
     def transform(self, series):
         series = np.asarray(series, dtype=float)
         segments = self._compress(series)
         features = np.array([[seg[2], seg[3]] for seg in segments])
         labels = np.array([np.argmin(np.linalg.norm(fc - self.cluster_centers, axis=1)) for fc in features])
         return labels
-
-    # ==========================================================
-    # 4️⃣ INVERSE TRANSFORM (PATCHED RECONSTRUCTION)
-    # ==========================================================
 
     def inverse_transform(self, symbols, x0=None):
         """

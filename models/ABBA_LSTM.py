@@ -43,7 +43,6 @@ class ABBALSTM(nn.Module):
         device = x.device
         new_hidden_states = []
         for i, lstm in enumerate(self.abbalstm_layers):
-            # Initialisation des états
             if self.stateful and self.hidden_states is not None:
                 h0, c0 = self.hidden_states[i]
             else:
@@ -55,15 +54,15 @@ class ABBALSTM(nn.Module):
 
         if self.stateful:
             self.hidden_states = new_hidden_states
-        
+
         logits = self.fc(x[:, -1, :])
         return logits
 
-    def forecast(self, initial_symbols, horizon):
+    def forecast(self, initial_symbols, horizon, stochastic=False):
         self.eval()
         if self.stateful:
             self.reset_states()
-        
+
         if isinstance(initial_symbols, np.ndarray):
             initial_symbols = torch.tensor(
                 initial_symbols, dtype=torch.long
@@ -76,9 +75,11 @@ class ABBALSTM(nn.Module):
             x = history[-self.lag:].unsqueeze(0)
             with torch.no_grad():
                 logits = self(x)
-                # s = torch.argmax(logits, dim=1)
-                probs = torch.softmax(logits, dim=1)
-                s = torch.multinomial(probs, num_samples=1).view(-1)
+                if stochastic:
+                    probs = torch.softmax(logits, dim=1)
+                    s = torch.multinomial(probs, num_samples=1).view(-1)
+                else:
+                    s = torch.argmax(logits, dim=1)
             predictions.append(s.item())
             history = torch.cat([history, s])
 

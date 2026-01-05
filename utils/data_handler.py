@@ -12,8 +12,6 @@ def create_lagged_series_continuous(series, lag):
     """
     X, y = [], []
     if len(series) <= lag:
-        # Si la série est trop courte, on ne peut créer qu'une seule séquence partielle
-        # On complète avec des zéros à gauche pour atteindre la longueur lag
         padding = torch.zeros(lag - len(series))
         padded_series = torch.cat([padding, series])
         X.append(padded_series)
@@ -37,8 +35,6 @@ def create_lagged_series_symbolic(series, lag):
     """
     X, y = [], []
     if len(series) <= lag:
-        # Si la série est trop courte, on ne peut créer qu'une seule séquence partielle
-        # On complète avec des zéros à gauche pour atteindre la longueur lag
         padding = torch.zeros(lag - len(series), dtype=torch.long)
         padded_series = torch.cat([padding, series])
         X.append(padded_series)
@@ -48,8 +44,8 @@ def create_lagged_series_symbolic(series, lag):
             X.append(series[i:i+lag])
             y.append(series[i+lag])
 
-    X = torch.stack(X)   # (N-lag, lag)
-    y = torch.tensor(y, dtype=torch.long)  # (N-lag,)
+    X = torch.stack(X)
+    y = torch.tensor(y, dtype=torch.long)
 
     return X.long(), y.long()
 
