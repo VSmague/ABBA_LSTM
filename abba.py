@@ -210,13 +210,14 @@ class ABBAPatched:
     (Elsworth & Güttel)
     """
 
-    def __init__(self, compression_tol=0.01, alpha=0.1, random_state=42):
+    def __init__(self, compression_tol=0.01, alpha=0.1, max_k=None, random_state=42):
         """
         compression_tol  : tolérance de compression (epsilon dans l'article)
         """
         self.compression_tol = compression_tol
         self.random_state = random_state
         self.alpha = alpha
+        self.max_k = max_k
         self.symbol_sequence = None
         self.patches = None
         self.cluster_centers = None
@@ -260,6 +261,28 @@ class ABBAPatched:
             i0 = i1
 
         return segments
+    
+    def _merge_clusters(self, labels, centers, features):
+        # distance entre centres
+        dists = np.linalg.norm(
+            centers[:, None, :] - centers[None, :, :], axis=2
+        )
+        np.fill_diagonal(dists, np.inf)
+
+        i, j = np.unravel_index(np.argmin(dists), dists.shape)
+
+        # fusion j → i
+        labels = labels.copy()
+        labels[labels == j] = i
+        labels[labels > j] -= 1
+        unique = np.unique(labels)
+        # recalcul centres
+        new_centers = []
+        for k in unique:
+            idx = np.where(labels == k)[0]
+            new_centers.append(features[idx].mean(axis=0))
+
+        return labels, np.array(new_centers)
 
     # ==========================================================
     # 2️⃣ DIGITIZATION + PATCH CONSTRUCTION
@@ -274,7 +297,20 @@ class ABBAPatched:
         self.lengths = [seg[2] for seg in segments]
         # features pour clustering
         features = np.array([[seg[2], seg[3]] for seg in segments])
+        features = (features - features.mean(axis=0)) / features.std(axis=0)
+        print("First two features:", features[:2])
+        print("Distance:", np.linalg.norm(features[1] - features[0]))
+        print("Alpha:", self.alpha)
         labels, centers = alpha_clustering(features, alpha=self.alpha)
+        if self.max_k is not None:
+            while len(centers) > self.max_k:
+                print('nb of clusters :', len(centers))
+                labels, centers = self._merge_clusters(
+                    labels, centers, features
+                )
+        # unique = np.unique(labels)
+        # mapping = {old: new for new, old in enumerate(unique)}
+        # labels = np.array([mapping[l] for l in labels])
         self.cluster_centers = centers
         self.n_symbols = len(centers)
 
