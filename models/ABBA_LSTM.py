@@ -10,6 +10,7 @@ class ABBALSTM(nn.Module):
         embedding_dim=16,
         hidden_sizes=[50, 50],
         lag=10,
+        dropout=0.0,
         stateful=False
     ):
         super(ABBALSTM, self).__init__()
@@ -27,7 +28,8 @@ class ABBALSTM(nn.Module):
                     nn.LSTM(
                         input_size=in_size,
                         hidden_size=hidden_sizes[i],
-                        batch_first=True
+                        batch_first=True,
+                        dropout=dropout if len(hidden_sizes) > 1 else 0.0
                     )
                 )
         self.fc = nn.Linear(hidden_sizes[-1], n_symbols)
@@ -58,7 +60,7 @@ class ABBALSTM(nn.Module):
         logits = self.fc(x[:, -1, :])
         return logits
 
-    def forecast(self, initial_symbols, horizon, stochastic=False):
+    def forecast(self, initial_symbols, horizon, stochastic=False, temp=1):
         self.eval()
         if self.stateful:
             self.reset_states()
@@ -76,7 +78,7 @@ class ABBALSTM(nn.Module):
             with torch.no_grad():
                 logits = self(x)
                 if stochastic:
-                    probs = torch.softmax(logits, dim=1)
+                    probs = torch.softmax(logits / temp, dim=1)
                     s = torch.multinomial(probs, num_samples=1).view(-1)
                 else:
                     s = torch.argmax(logits, dim=1)
