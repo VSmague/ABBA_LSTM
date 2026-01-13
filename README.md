@@ -12,6 +12,7 @@ L’objectif est de réduire la complexité des séries temporelles grâce à AB
 - **Apprentissage séquentiel** avec un modèle LSTM
 - **Notebook interactif** pour l’exploration et l’expérimentation
 - **Export des résultats** au format CSV
+- **Rapport du projet** au format pdf
 
 ---
 
@@ -39,4 +40,4 @@ pip install -r requirements.txt
 
 ## Référence
 
-ABBA – Adaptive Brownian Bridge-based Aggregation [https://arxiv.org/abs/2003.12469]
+[ABBA – Adaptive Brownian Bridge-based Aggregation](https://arxiv.org/abs/2003.12469)
